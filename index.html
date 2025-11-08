@@ -1,1 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ride Operator Dashboard</title>
+<style>
+body { font-family: Arial, sans-serif; background:#e8e8e8; margin:0; padding:0; }
+#login, #dashboard { max-width:900px; margin:40px auto; background:white; padding:25px; border-radius:10px; box-shadow:0 3px 12px rgba(0,0,0,0.2); }
+input, textarea, select { width:100%; padding:8px; margin-top:6px; border-radius:6px; border:1px solid #aaa; }
+button { padding:8px 14px; background:#1a73e8; border:none; border-radius:6px; color:white; cursor:pointer; }
+button:hover { background:#155dc3; }
+.hidden{ display:none; }
+nav button { margin-right:6px; }
+.section { display:none; margin-top:16px; }
+</style>
+</head>
 
+<body>
+
+<div id="login">
+<h2>Ride Operator Dashboard Login</h2>
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" placeholder="Password" type="password">
+<br><br>
+<button onclick="login()">Login</button>
+</div>
+
+<div id="dashboard" class="hidden">
+<div style="display:flex; justify-content:space-between; align-items:center;">
+<h2 id="roleTitle"></h2>
+<button onclick="logout()">Logout</button>
+</div>
+
+<nav id="leaderNav" class="hidden">
+<button onclick="show('sessions')">Session Scheduling</button>
+<button onclick="show('roster')">Roster Management</button>
+<button onclick="show('announcements')">Announcements</button>
+<button onclick="show('manuals')">Manuals</button>
+<button onclick="show('helpdeskView')">Helpdesk Tickets</button>
+<button onclick="show('userAdmin')">User Administration</button>
+</nav>
+
+<nav id="opNav" class="hidden">
+<button onclick="show('sessionsView')">View Sessions</button>
+<button onclick="show('manuals')">Manuals</button>
+<button onclick="show('helpdeskSubmit')">Helpdesk Request</button>
+<button onclick="show('announcementsView')">Announcements</button>
+</nav>
+
+<!-- Leadership: Session Scheduling -->
+<div id="sessions" class="section">
+<h3>Create Session</h3>
+<input id="sessionName" placeholder="Session Name">
+<input id="sessionTime" type="datetime-local">
+<button onclick="addSession()">Add Session</button>
+<hr>
+<h3>Current Sessions</h3>
+<ul id="sessionList"></ul>
+</div>
+
+<!-- Leadership: Roster -->
+<div id="roster" class="section">
+<h3>Roster</h3>
+<textarea id="rosterText" rows="6"></textarea>
+<button onclick="saveRoster()">Save Roster</button>
+</div>
+
+<!-- Leadership: Announcements -->
+<div id="announcements" class="section">
+<h3>Post Announcement</h3>
+<textarea id="newAnnouncement" rows="3"></textarea>
+<button onclick="addAnnouncement()">Post</button>
+<hr>
+<ul id="annList"></ul>
+</div>
+
+<!-- Leadership: Manuals -->
+<div id="manuals" class="section">
+<h3>Manuals</h3>
+<textarea id="manualText" rows="6"></textarea>
+<button onclick="saveManuals()">Save Manuals</button>
+</div>
+
+<!-- Leadership: Helpdesk VIEW -->
+<div id="helpdeskView" class="section">
+<h3>Helpdesk Tickets</h3>
+<ul id="ticketList"></ul>
+</div>
+
+<!-- Leadership: User Admin -->
+<div id="userAdmin" class="section">
+<h3>Create User</h3>
+<input id="newU" placeholder="Username">
+<input id="newP" type="password" placeholder="Password">
+<select id="newR">
+<option value="operator">Operator</option>
+<option value="leadership">Leadership</option>
+</select>
+<button onclick="createUser()">Create</button>
+<hr>
+<h3>Change Password</h3>
+<input id="cpUser" placeholder="Username">
+<input id="cpNewPass" type="password" placeholder="New Password">
+<button onclick="changePassword()">Update Password</button>
+</div>
+
+<!-- Operator: View Sessions -->
+<div id="sessionsView" class="section">
+<h3>Upcoming Sessions</h3>
+<ul id="sessionListView"></ul>
+</div>
+
+<!-- Operator: Helpdesk Submit -->
+<div id="helpdeskSubmit" class="section">
+<h3>Submit Helpdesk Ticket</h3>
+<textarea id="ticketMsg" rows="3"></textarea>
+<button onclick="submitTicket()">Submit</button>
+</div>
+
+<!-- Operator: Announcements View -->
+<div id="announcementsView" class="section">
+<h3>Announcements</h3>
+<ul id="annViewList"></ul>
+</div>
+
+</div>
+
+<script>
+// INITIAL STORAGE SETUP
+if(!localStorage.users){
+localStorage.users = JSON.stringify([
+{user:"admin", pass:"admin123", role:"leadership"}
+]);
+}
+if(!localStorage.sessions){ localStorage.sessions="[]"; }
+if(!localStorage.roster){ localStorage.roster=""; }
+if(!localStorage.manuals){ localStorage.manuals=""; }
+if(!localStorage.announcements){ localStorage.announcements="[]"; }
+if(!localStorage.tickets){ localStorage.tickets="[]"; }
+
+function login(){
+let u=document.getElementById("loginUser").value.trim();
+let p=document.getElementById("loginPass").value.trim();
+let users=JSON.parse(localStorage.users);
+let f=users.find(x=>x.user===u && x.pass===p);
+if(!f){ alert("Invalid login"); return; }
+localStorage.currentUser=JSON.stringify(f);
+document.getElementById("login").classList.add("hidden");
+document.getElementById("dashboard").classList.remove("hidden");
+document.getElementById("roleTitle").innerText=f.role.toUpperCase()+" DASHBOARD";
+if(f.role=="leadership"){ leaderNav.classList.remove("hidden"); opNav.classList.add("hidden"); }
+else { opNav.classList.remove("hidden"); leaderNav.classList.add("hidden"); }
+refresh();
+}
+
+function logout(){ localStorage.removeItem("currentUser"); location.reload(); }
+
+function show(id){ document.querySelectorAll(".section").forEach(s=>s.style.display="none"); document.getElementById(id).style.display="block"; }
+
+function addSession(){
+let s=document.getElementById("sessionName").value.trim();
+let t=document.getElementById("sessionTime").value;
+if(!s||!t) return;
+let arr=JSON.parse(localStorage.sessions);
+arr.push({name:s, time:t});
+localStorage.sessions=JSON.stringify(arr);
+refresh();
+}
+
+function refresh(){
+let arr=JSON.parse(localStorage.sessions);
+let now=Date.now();
+arr=arr.filter(x=> new Date(x.time).getTime()>now);
+localStorage.sessions=JSON.stringify(arr);
+sessionList.innerHTML="";
+sessionListView.innerHTML="";
+arr.forEach((x,i)=>{
+sessionList.innerHTML+=`<li>${x.name} - ${x.time} <button onclick="removeSession(${i})">X</button></li>`;
+sessionListView.innerHTML+=`<li>${x.name} - ${x.time}</li>`;
+});
+rosterText.value=localStorage.roster;
+manualText.value=localStorage.manuals;
+let anns=JSON.parse(localStorage.announcements);
+annList.innerHTML="";
+annViewList.innerHTML="";
+anns.forEach(x=>{ annList.innerHTML+=`<li>${x}</li>`; annViewList.innerHTML+=`<li>${x}</li>`; });
+let tks=JSON.parse(localStorage.tickets);
+ticketList.innerHTML="";
+tks.forEach(x=> ticketList.innerHTML+=`<li><b>${x.user}:</b> ${x.msg}</li>`);
+}
+
+function removeSession(i){
+let arr=JSON.parse(localStorage.sessions);
+arr.splice(i,1);
+localStorage.sessions=JSON.stringify(arr);
+refresh();
+}
+
+function saveRoster(){ localStorage.roster=rosterText.value; }
+function saveManuals(){ localStorage.manuals=manualText.value; }
+function addAnnouncement(){
+let a=newAnnouncement.value.trim(); if(!a)return;
+let anns=JSON.parse(localStorage.announcements);
+anns.unshift(a);
+localStorage.announcements=JSON.stringify(anns);
+refresh();
+}
+function submitTicket(){
+let u=JSON.parse(localStorage.currentUser).user;
+let m=ticketMsg.value.trim(); if(!m)return;
+let t=JSON.parse(localStorage.tickets);
+t.unshift({user:u,msg:m});
+localStorage.tickets=JSON.stringify(t);
+ticketMsg.value="";
+}
+
+function createUser(){
+let u=newU.value.trim(), p=newP.value.trim(), r=newR.value;
+if(!u||!p)return;
+let users=JSON.parse(localStorage.users);
+users.push({user:u,pass:p,role:r});
+localStorage.users=JSON.stringify(users);
+newU.value=""; newP.value="";
+}
+
+function changePassword(){
+let u=cpUser.value.trim(), p=cpNewPass.value.trim();
+let users=JSON.parse(localStorage.users);
+let f=users.find(x=>x.user===u);
+if(!f){ alert("User not found"); return; }
+f.pass=p;
+localStorage.users=JSON.stringify(users);
+cpUser.value=""; cpNewPass.value="";
+}
+
+refresh();
+</script>
+</body>
+</html>
